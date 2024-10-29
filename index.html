@@ -106,7 +106,7 @@ function showPosition(position) {
     places.forEach(function(place) {
         var distance = calculateDistance(userLat, userLon, place.lat, place.lon);
 
-        if (distance <= 2) {
+        if (distance <= 1000) {
             L.marker([place.lat, place.lon]).addTo(map)
                 .bindPopup('<b>' + place.name + '</b><br>Distância: ' + distance.toFixed(2) + ' km');
 
