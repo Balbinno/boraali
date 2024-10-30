@@ -7,16 +7,70 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
     <style>
+        /* Estilos Gerais */
         body { font-family: Arial, sans-serif; background-color: #0a043c; color: white; margin: 0; padding: 0; }
-        header { display: flex; align-items: center; padding: 15px; background-color: #10102f; position: relative; }
+        .hidden { display: none; }
+        
+        /* Estilos de Login e Cadastro */
+        .auth-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #10102f;
+        }
+        .auth-container h2 { color: #ff5733; }
+        .auth-container input, .auth-container button {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border: none;
+            width: 80%;
+            font-size: 16px;
+        }
+        .auth-container button {
+            background-color: #ff5733;
+            color: white;
+            cursor: pointer;
+        }
+        .auth-container button:hover {
+            background-color: #ff2e00;
+        }
+        .switch-auth {
+            color: #ff5733;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        /* Estilos Existentes */
+        header, .container, #map, .navbar {
+            display: none;
+        }
+        header { display: flex; align-items: center; padding: 15px; background-color: #10102f; }
         header img { border-radius: 50%; width: 40px; height: 40px; margin-right: 15px; }
         header input { width: 80%; padding: 10px; border: none; border-radius: 5px; }
+        #highlightsButton {
+            background-color: #ff5733;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            box-shadow: 0px 4px 8px rgba(255, 87, 51, 0.4);
+            transition: background-color 0.3s, transform 0.3s;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        #highlightsButton:hover {
+            background-color: #ff2e00;
+            transform: scale(1.05);
+        }
         .dropdown { position: absolute; top: 60px; left: 15px; width: 80%; background-color: #333; color: white; border-radius: 5px; max-height: 200px; overflow-y: auto; display: none; }
-        .dropdown-item { padding: 10px; cursor: pointer; }
-        .dropdown-item:hover { background-color: #555; }
-        .container { padding: 15px; }
         .location { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; cursor: pointer; }
-        .location img { width: 100%; border-radius: 10px; }
+        .location img { width: 100%; height: 150px; object-fit: cover; border-radius: 10px; }
         .location h2 { margin: 10px 0 5px 0; font-size: 18px; }
         .location p { margin: 0; font-size: 14px; color: #bbb; }
         .location .distance { float: right; color: #bbb; }
@@ -26,25 +80,51 @@
         .location button:hover { background-color: #ff2e00; }
         .navbar { position: fixed; bottom: 0; width: 100%; background-color: #10102f; display: flex; justify-content: space-around; padding: 10px 0; }
         .navbar img { width: 25px; }
-        #map { height: 500px; width: 100%; } /* Mapa fixo na base do aplicativo */
+        #map { height: 500px; width: 100%; }
+
+
+    /* Estilo do botão "Destaques" quando estiver na aba de destaques */
+    #highlightsButton.highlight-active {
+    background-color: #0a043c; /* Mesma cor do fundo */
+    color: #ff5733; /* Texto laranja */
+    font-size: 18px; /* Aumenta o tamanho da fonte */
+    box-shadow: none; /* Remove a sombra */
+    transform: none; /* Remove o efeito de transformação */
+}
     </style>
 </head>
 <body>
 
+<!-- Tela de Cadastro -->
+<div class="auth-container" id="registerScreen">
+    <h2>Cadastro</h2>
+    <input type="text" id="registerUsername" placeholder="Nome de Usuário">
+    <input type="password" id="registerPassword" placeholder="Senha">
+    <button onclick="registerUser()">Cadastrar</button>
+    <p>Já tem uma conta? <span class="switch-auth" onclick="showLoginScreen()">Faça login</span></p>
+</div>
+
+<!-- Tela de Login -->
+<div class="auth-container hidden" id="loginScreen">
+    <h2>Login</h2>
+    <input type="text" id="loginUsername" placeholder="Nome de Usuário">
+    <input type="password" id="loginPassword" placeholder="Senha">
+    <button onclick="loginUser()">Entrar</button>
+    <p>Não tem uma conta? <span class="switch-auth" onclick="showRegisterScreen()">Cadastre-se</span></p>
+</div>
+
+<!-- Interface Principal -->
 <header>
     <img src="profile.png" alt="Profile">
     <input type="text" placeholder="Pesquisar" id="searchInput">
     <div class="dropdown" id="dropdown"></div>
 </header>
-
 <div class="container">
+    <button id="highlightsButton">Destaques</button>
     <h3>Lugares próximos de você</h3>
     <div id="locations-list"></div>
 </div>
-
-<!-- Contêiner do mapa -->
 <div id="map"></div>
-
 <div class="navbar">
     <img src="search_icon.png" alt="Search">
     <img src="favorites_icon.png" alt="Favorites">
@@ -55,21 +135,115 @@
 <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
 <script>
+// Variáveis de controle
+let isRegistered = false;
+let registeredUser = { username: '', password: '' };
+
+// Funções de Autenticação
+function registerUser() {
+    const username = document.getElementById('registerUsername').value;
+    const password = document.getElementById('registerPassword').value;
+    if (username && password) {
+        registeredUser = { username, password };
+        isRegistered = true;
+        alert("Cadastro realizado com sucesso! Faça login.");
+        showLoginScreen();
+    } else {
+        alert("Por favor, preencha todos os campos.");
+    }
+}
+
+function loginUser() {
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+    if (isRegistered && username === registeredUser.username && password === registeredUser.password) {
+        alert("Login realizado com sucesso!");
+        showMainScreen();
+    } else {
+        alert("Usuário ou senha incorretos ou ainda não cadastrado.");
+    }
+}
+
+function showHighlights() {
+    document.querySelector('header').style.display = 'none';
+    document.getElementById('map').style.display = 'none';
+    document.querySelector('.navbar').style.display = 'none';
+    
+    // Alteração no estilo do botão "Destaques"
+    highlightsButton.classList.add('highlight-active');
+
+    locationsList.innerHTML = '';
+    const highlightedPlaces = [
+        { name: 'Vivano', lat: -23.616141, lon: -46.565172, img: 'imgborali/vivano.jpg', description: 'Novos pratos e tradições da casa com descontos especiais neste mês' },
+        { name: 'Senhor Boteco', lat: -23.616051, lon: -46.570273, img: 'imgborali/senhor_boteco.jpg', description: 'Desconto de 10%' }
+    ];
+
+    highlightedPlaces.forEach((place, index) => {
+        const distance = calculateDistance(userLat, userLon, place.lat, place.lon);
+        locationsList.innerHTML += createLocationHTML(place, distance, index, place.description);
+    });
+
+    locationsList.innerHTML += `
+        <button onclick="goBack()" style="
+            background-color: #ff5733;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+        ">Voltar</button>
+    `;
+}
+
+function goBack() {
+    document.querySelector('header').style.display = 'flex';
+    document.getElementById('map').style.display = 'block';
+    document.querySelector('.navbar').style.display = 'flex';
+
+    highlightsButton.classList.remove('highlight-active');
+    renderNearbyLocations();
+}
+
+
+
+// Alternar entre telas de cadastro e login
+function showLoginScreen() {
+    document.getElementById('registerScreen').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'flex';
+}
+
+function showRegisterScreen() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('registerScreen').style.display = 'flex';
+}
+
+// Exibir tela principal após login bem-sucedido
+function showMainScreen() {
+    document.getElementById('registerScreen').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'none';
+    document.querySelector('header').style.display = 'flex';
+    document.querySelector('.container').style.display = 'block';
+    document.getElementById('map').style.display = 'block';
+    document.querySelector('.navbar').style.display = 'flex';
+}
+
+// Funções de geolocalização e mapa
 let map, routingControl, userLat, userLon;
 const dropdown = document.getElementById('dropdown');
 const searchInput = document.getElementById('searchInput');
 const locationsList = document.getElementById('locations-list');
+const highlightsButton = document.getElementById('highlightsButton');
+highlightsButton.addEventListener('click', showHighlights);
 
-// Lista de locais definidos no código
 const places = [
     { name: 'Park Shopping São Caetano', lat: -23.62577071710919, lon: -46.58031329507067, img: 'shopping_scs.jpg', description: 'Shopping Center' },
     { name: 'Escola Mario Leandro', lat: -23.691804897254574, lon: -46.43650704828672, img: 'imgborali/escola.jpg', description: 'Escola pública' },
     { name: 'Praça Hiroshiro', lat: -23.692248077859876, lon: -46.43890818397629, img: 'imgborali/praça.jpg', description: 'Praça Pública' },
     { name: 'Parque da Juventude', lat: -23.506975294310987, lon: -46.62042587515163, img: 'imgborali/parque_juventude.jpg', description: 'Parque da Juventude' },
     { name: 'Vivano', lat: -23.616141, lon: -46.565172, img: 'imgborali/vivano.jpg', description: 'Experiência gastronômica' },
-    { name: 'Senhor Boteco', lat: -23.616051, lon: -46.570273, img: 'imgborali/senhor_boteco.jpg', description: 'Opção de bar pela cidade' },
-    { name: 'USCS Conceição', lat: -23.617801043838988, lon: -46.57895393138371, img: 'imgborali/uscs.jpg', description: 'Universidade' },
-    { name: 'Ironberg', lat: -23.623600206635096, lon: -46.57709933812019, img: 'imgborali/ironberg.jpg', description: 'Academia Ironberg' },
+    { name: 'Senhor Boteco', lat: -23.616051, lon: -46.570273, img: 'imgborali/senhor_boteco.jpg', description: 'Opção de bar pela cidade' }
 ];
 
 if (navigator.geolocation) {
@@ -93,38 +267,34 @@ function showPosition(position) {
     renderNearbyLocations();
 }
 
-// Renderiza locais próximos (dentro de 2 km)
 function renderNearbyLocations() {
-    locationsList.innerHTML = ''; // Limpa a lista antes de renderizar
+    locationsList.innerHTML = '';
     places.forEach((place, index) => {
         const distance = calculateDistance(userLat, userLon, place.lat, place.lon);
         if (distance <= 2) {
-            locationsList.innerHTML += createLocationHTML(place, distance, index);
+            locationsList.innerHTML += createLocationHTML(place, distance, index, place.description);
         }
     });
 }
 
-// Cria o HTML para cada local
-function createLocationHTML(place, distance, index) {
+function createLocationHTML(place, distance, index, description) {
     return `
         <div class="location" onclick="toggleDetails(${index})">
             <img src="${place.img}" alt="${place.name}">
             <h2>${place.name} <span class="distance">${distance.toFixed(2)} km</span></h2>
+            <p>${description}</p>
             <div class="location-details" id="details-${index}">
-                <p>${place.description}</p>
                 <button onclick="defineRoute(${userLat}, ${userLon}, ${place.lat}, ${place.lon}); event.stopPropagation();">Definir Rota</button>
             </div>
         </div>
     `;
 }
 
-// Função para alternar a exibição da descrição e do botão "Definir Rota"
 function toggleDetails(index) {
     const details = document.getElementById(`details-${index}`);
     details.style.display = details.style.display === 'none' || details.style.display === '' ? 'block' : 'none';
 }
 
-// Calcula a distância entre dois pontos
 function calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -136,10 +306,9 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Função para definir a rota no mapa
 function defineRoute(userLat, userLon, destLat, destLon) {
     if (routingControl) {
-        map.removeControl(routingControl); // Remove rota anterior, se existir
+        map.removeControl(routingControl);
     }
 
     routingControl = L.Routing.control({
@@ -158,32 +327,6 @@ function defineRoute(userLat, userLon, destLat, destLon) {
         draggableWaypoints: false,
     }).addTo(map);
 }
-
-// Função de pesquisa para filtrar locais
-searchInput.addEventListener('input', function() {
-    const query = searchInput.value.trim().toLowerCase();
-    dropdown.innerHTML = '';  // Limpa o dropdown
-
-    if (query.length > 0) {
-        const filteredPlaces = places.filter(place => place.name.toLowerCase().includes(query));
-        locationsList.innerHTML = '';
-
-        if (filteredPlaces.length > 0) {
-            filteredPlaces.forEach((place, index) => {
-                const distance = calculateDistance(userLat, userLon, place.lat, place.lon);
-                locationsList.innerHTML += createLocationHTML(place, distance, index);
-            });
-        }
-    } else {
-        renderNearbyLocations(); // Volta a exibir locais próximos ao limpar o campo de pesquisa
-    }
-});
-
-document.addEventListener('click', function(e) {
-    if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
-        dropdown.style.display = 'none';
-    }
-});
 
 function showError(error) {
     switch(error.code) {
