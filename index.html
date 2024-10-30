@@ -229,6 +229,8 @@ function showMainScreen() {
     document.querySelector('.navbar').style.display = 'flex';
 }
 
+
+
 // Funções de geolocalização e mapa
 let map, routingControl, userLat, userLon;
 const dropdown = document.getElementById('dropdown');
@@ -327,6 +329,23 @@ function defineRoute(userLat, userLon, destLat, destLon) {
         draggableWaypoints: false,
     }).addTo(map);
 }
+
+searchInput.addEventListener('input', function() {
+    const query = searchInput.value.trim().toLowerCase();
+    dropdown.innerHTML = '';
+    if (query.length > 0) {
+        const filteredPlaces = places.filter(place => place.name.toLowerCase().includes(query));
+        locationsList.innerHTML = '';
+        if (filteredPlaces.length > 0) {
+            filteredPlaces.forEach((place, index) => {
+                const distance = calculateDistance(userLat, userLon, place.lat, place.lon);
+                locationsList.innerHTML += createLocationHTML(place, distance, index, place.description);
+            });
+        }
+    } else {
+        renderNearbyLocations();
+    }
+});
 
 function showError(error) {
     switch(error.code) {
